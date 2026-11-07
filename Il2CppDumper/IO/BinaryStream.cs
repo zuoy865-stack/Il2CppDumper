@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -15,9 +16,6 @@ namespace Il2CppDumper
         private readonly Stream stream;
         private readonly BinaryReader reader;
         private readonly BinaryWriter writer;
-        private readonly MethodInfo readClass;
-        private readonly MethodInfo readClassArray;
-        private readonly Dictionary<Type, MethodInfo> genericMethodCache;
         private readonly Dictionary<FieldInfo, VersionAttribute[]> attributeCache;
 
         public BinaryStream(Stream input)
@@ -25,9 +23,6 @@ namespace Il2CppDumper
             stream = input;
             reader = new BinaryReader(stream, Encoding.UTF8, true);
             writer = new BinaryWriter(stream, Encoding.UTF8, true);
-            readClass = GetType().GetMethod("ReadClass", Type.EmptyTypes);
-            readClassArray = GetType().GetMethod("ReadClassArray", new[] { typeof(long) });
-            genericMethodCache = new();
             attributeCache = new();
         }
 
@@ -106,13 +101,13 @@ namespace Il2CppDumper
             };
         }
 
-        public T ReadClass<T>(ulong addr) where T : new()
+        public T ReadClass<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields)] T>(ulong addr) where T : new()
         {
             Position = addr;
             return ReadClass<T>();
         }
 
-        public T ReadClass<T>() where T : new()
+        public T ReadClass<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields)] T>() where T : new()
         {
             var type = typeof(T);
             if (type.IsPrimitive)
@@ -121,8 +116,8 @@ namespace Il2CppDumper
             }
             else
             {
-                var t = new T();
-                foreach (var i in t.GetType().GetFields())
+                object t = new T();
+                foreach (var i in type.GetFields())
                 {
                     if (!attributeCache.TryGetValue(i, out var versionAttributes))
                     {
@@ -155,34 +150,44 @@ namespace Il2CppDumper
                     }
                     else if (fieldType.IsEnum)
                     {
-                        var e = fieldType.GetField("value__").FieldType;
-                        i.SetValue(t, ReadPrimitive(e));
+                        i.SetValue(t, Enum.ToObject(fieldType, ReadPrimitive(Enum.GetUnderlyingType(fieldType))));
                     }
                     else if (fieldType.IsArray)
                     {
-                        var arrayLengthAttribute = i.GetCustomAttribute<ArrayLengthAttribute>();
-                        if (!genericMethodCache.TryGetValue(fieldType, out var methodInfo))
-                        {
-                            methodInfo = readClassArray.MakeGenericMethod(fieldType.GetElementType());
-                            genericMethodCache.Add(fieldType, methodInfo);
-                        }
-                        i.SetValue(t, methodInfo.Invoke(this, new object[] { arrayLengthAttribute.Length }));
+                        var length = i.GetCustomAttribute<ArrayLengthAttribute>().Length;
+                        i.SetValue(t, ReadInlineArray(fieldType, length));
                     }
                     else
                     {
-                        if (!genericMethodCache.TryGetValue(fieldType, out var methodInfo))
-                        {
-                            methodInfo = readClass.MakeGenericMethod(fieldType);
-                            genericMethodCache.Add(fieldType, methodInfo);
-                        }
-                        i.SetValue(t, methodInfo.Invoke(this, null));
+                        i.SetValue(t, ReadNestedClass(fieldType));
                     }
                 }
-                return t;
+                return (T)t;
             }
         }
 
-        public T[] ReadClassArray<T>(long count) where T : new()
+        // These layouts appear as inline fields of the on-disk structures.
+        private object ReadNestedClass(Type type)
+        {
+            if (type == typeof(Il2CppAssemblyNameDefinition)) return ReadClass<Il2CppAssemblyNameDefinition>();
+            if (type == typeof(Il2CppGenericContext)) return ReadClass<Il2CppGenericContext>();
+            if (type == typeof(Il2CppGenericMethodIndices)) return ReadClass<Il2CppGenericMethodIndices>();
+            if (type == typeof(Il2CppRange)) return ReadClass<Il2CppRange>();
+            if (type == typeof(Il2CppRGCTXDefinitionData)) return ReadClass<Il2CppRGCTXDefinitionData>();
+            if (type == typeof(Il2CppSectionMetadata)) return ReadClass<Il2CppSectionMetadata>();
+            if (type == typeof(NSORelativeExtent)) return ReadClass<NSORelativeExtent>();
+            if (type == typeof(NSOSegmentHeader)) return ReadClass<NSOSegmentHeader>();
+            throw new NotSupportedException($"Unsupported inline structure: {type}.");
+        }
+
+        private Array ReadInlineArray(Type type, int length)
+        {
+            if (type == typeof(byte[])) return ReadClassArray<byte>(length);
+            if (type == typeof(ushort[])) return ReadClassArray<ushort>(length);
+            throw new NotSupportedException($"Unsupported inline array: {type}.");
+        }
+
+        public T[] ReadClassArray<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields)] T>(long count) where T : new()
         {
             if (count < 0 || count > int.MaxValue)
             {
@@ -198,7 +203,7 @@ namespace Il2CppDumper
             return t;
         }
 
-        public T[] ReadClassArray<T>(ulong addr, ulong count) where T : new()
+        public T[] ReadClassArray<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields)] T>(ulong addr, ulong count) where T : new()
         {
             if (count > int.MaxValue)
             {
@@ -208,7 +213,7 @@ namespace Il2CppDumper
             return ReadClassArray<T>(addr, (long)count);
         }
 
-        public T[] ReadClassArray<T>(ulong addr, long count) where T : new()
+        public T[] ReadClassArray<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields)] T>(ulong addr, long count) where T : new()
         {
             Position = addr;
             return ReadClassArray<T>(count);

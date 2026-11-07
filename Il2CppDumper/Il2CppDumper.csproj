@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -8,7 +8,12 @@
     <FileVersion>1.0.0.0</FileVersion>
     <Copyright>Copyright © Perfare 2016-2024</Copyright>
     <DebugType>embedded</DebugType>
-	<BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0' and '$(RuntimeIdentifier)' == 'win-x64'">
+    <PublishAot>true</PublishAot>
+    <RuntimeFrameworkVersion>8.0.33</RuntimeFrameworkVersion>
   </PropertyGroup>
 
   <ItemGroup>

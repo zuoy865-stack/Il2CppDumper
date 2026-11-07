@@ -1,45 +1,83 @@
-﻿using System;
-using static Il2CppDumper.FileDialogNative;
+using System;
+using System.Runtime.InteropServices;
 
 namespace Il2CppDumper
 {
     public class OpenFileDialog
     {
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct OpenFileName
+        {
+            public uint Size;
+            public IntPtr Owner;
+            public IntPtr Instance;
+            public IntPtr Filter;
+            public IntPtr CustomFilter;
+            public uint MaxCustomFilter;
+            public uint FilterIndex;
+            public IntPtr File;
+            public uint MaxFile;
+            public IntPtr FileTitle;
+            public uint MaxFileTitle;
+            public string InitialDirectory;
+            public string Title;
+            public uint Flags;
+            public ushort FileOffset;
+            public ushort ExtensionOffset;
+            public string DefaultExtension;
+            public IntPtr CustomData;
+            public IntPtr Hook;
+            public IntPtr TemplateName;
+            public IntPtr Reserved;
+            public uint ReservedFlags;
+            public uint ExtendedFlags;
+        }
+
+        private const uint NoChangeDirectory = 0x00000008;
+        private const uint FileMustExist = 0x00001000;
+        private const uint Explorer = 0x00080000;
+        private const uint DontAddToRecent = 0x02000000;
+
+        [DllImport("comdlg32.dll", EntryPoint = "GetOpenFileNameW", CharSet = CharSet.Unicode, ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetOpenFileName(ref OpenFileName options);
+
         public string Title { get; set; }
         public string Filter { get; set; }
         public string FileName { get; set; }
 
         public bool ShowDialog()
         {
-            var dialog = (IFileDialog)(new FileOpenDialogRCW());
-            dialog.GetOptions(out var options);
-            options |= FOS.FOS_FORCEFILESYSTEM | FOS.FOS_NOVALIDATE | FOS.FOS_DONTADDTORECENT;
-            dialog.SetOptions(options);
-            if (!string.IsNullOrEmpty(Title))
+            const int pathCapacity = 32768;
+            var path = Marshal.AllocHGlobal(pathCapacity * sizeof(char));
+            // The Win32 filter is a sequence of NUL-terminated strings, followed by an extra NUL.
+            var filter = string.IsNullOrEmpty(Filter) ? IntPtr.Zero :
+                Marshal.StringToHGlobalUni(Filter.Replace('|', '\0') + "\0");
+            try
             {
-                dialog.SetTitle(Title);
-            }
-            if (!string.IsNullOrEmpty(Filter))
-            {
-                string[] filterElements = Filter.Split(new char[] { '|' });
-                COMDLG_FILTERSPEC[] filter = new COMDLG_FILTERSPEC[filterElements.Length / 2];
-                for (int x = 0; x < filterElements.Length; x += 2)
+                Marshal.WriteInt16(path, 0);
+                var options = new OpenFileName
                 {
-                    filter[x / 2].pszName = filterElements[x];
-                    filter[x / 2].pszSpec = filterElements[x + 1];
+                    Size = (uint)Marshal.SizeOf<OpenFileName>(),
+                    Filter = filter,
+                    FilterIndex = 1,
+                    File = path,
+                    MaxFile = pathCapacity,
+                    Title = Title,
+                    Flags = NoChangeDirectory | FileMustExist | Explorer | DontAddToRecent
+                };
+                if (!GetOpenFileName(ref options))
+                {
+                    return false;
                 }
-                dialog.SetFileTypes((uint)filter.Length, filter);
-            }
-            if (dialog.Show(IntPtr.Zero) == 0)
-            {
-                dialog.GetResult(out var shellItem);
-                shellItem.GetDisplayName(SIGDN.SIGDN_FILESYSPATH, out var ppszName);
-                FileName = ppszName;
+
+                FileName = Marshal.PtrToStringUni(path);
                 return true;
             }
-            else
+            finally
             {
-                return false;
+                Marshal.FreeHGlobal(filter);
+                Marshal.FreeHGlobal(path);
             }
         }
     }

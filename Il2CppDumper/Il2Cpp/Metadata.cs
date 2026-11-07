@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
 namespace Il2CppDumper
@@ -275,12 +276,12 @@ namespace Il2CppDumper
             }
         }
 
-        private T[] ReadMetadataClassArray<T>(uint addr, int count) where T : new()
+        private T[] ReadMetadataClassArray<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields)] T>(uint addr, int count) where T : new()
         {
             return ReadClassArray<T>(addr, count / SizeOf(typeof(T)));
         }
 
-        private T[] ReadMetadataClassArray<T>(Il2CppSectionMetadata section) where T : new()
+        private T[] ReadMetadataClassArray<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields)] T>(Il2CppSectionMetadata section) where T : new()
         {
             if (typeof(T) == typeof(Il2CppAssemblyDefinition))
             {
@@ -338,7 +339,7 @@ namespace Il2CppDumper
             return result;
         }
 
-        private T ReadMetadataClass<T>() where T : new()
+        private T ReadMetadataClass<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields)] T>() where T : new()
         {
             if (typeof(T) == typeof(Il2CppImageDefinition))
                 return (T)(object)ReadImageDefinition();
@@ -1097,7 +1098,11 @@ namespace Il2CppDumper
             return index & 0x1FFFFFFFU;
         }
 
-        public int SizeOf(Type type)
+        [UnconditionalSuppressMessage("Trimming", "IL2067", Justification =
+            "BinaryStream.ReadNestedClass preserves public fields on all inline binary layouts.")]
+        private int SizeOfNestedClass(Type type) => SizeOf(type);
+
+        public int SizeOf([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields)] Type type)
         {
             if (Version >= 38)
             {
@@ -1164,7 +1169,7 @@ namespace Il2CppDumper
                 }
                 else if (fieldType.IsEnum)
                 {
-                    var e = fieldType.GetField("value__").FieldType;
+                    var e = Enum.GetUnderlyingType(fieldType);
                     size += GetPrimitiveTypeSize(e.Name);
                 }
                 else if (fieldType.IsArray)
@@ -1174,7 +1179,7 @@ namespace Il2CppDumper
                 }
                 else
                 {
-                    size += SizeOf(fieldType);
+                    size += SizeOfNestedClass(fieldType);
                 }
             }
             return size;

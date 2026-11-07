@@ -1,0 +1,1 @@
+dotnet publish .\Il2CppDumper\Il2CppDumper.csproj -c Release -f net8.0 -r win-x64

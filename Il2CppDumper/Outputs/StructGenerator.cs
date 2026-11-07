@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -376,15 +376,14 @@ namespace Il2CppDumper
                 }
             }
             //输出单独的StringLiteral
-            var stringLiterals = json.ScriptString.Select(x => new
+            var stringLiterals = json.ScriptString.Select(x => new StringLiteralEntry
             {
-                value = x.Value,
-                address = $"0x{x.Address:X}"
+                Value = x.Value,
+                Address = $"0x{x.Address:X}"
             }).ToArray();
-            var jsonOptions = new JsonSerializerOptions() { WriteIndented = true, IncludeFields = true };
-            File.WriteAllText(outputDir + "stringliteral.json", JsonSerializer.Serialize(stringLiterals, jsonOptions), new UTF8Encoding(false));
+            File.WriteAllText(outputDir + "stringliteral.json", JsonSerializer.Serialize(stringLiterals, ScriptJsonContext.Default.StringLiteralEntryArray), new UTF8Encoding(false));
             //写入文件
-            File.WriteAllText(outputDir + "script.json", JsonSerializer.Serialize(json, jsonOptions));
+            File.WriteAllText(outputDir + "script.json", JsonSerializer.Serialize(json, ScriptJsonContext.Default.ScriptJson));
             //il2cpp.h
             for (int i = 0; i < genericClassList.Count; i++)
             {

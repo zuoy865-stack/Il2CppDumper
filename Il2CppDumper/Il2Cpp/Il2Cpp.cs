@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -375,17 +376,17 @@ namespace Il2CppDumper
                 : 0;
         }
 
-        public T MapVATR<T>(ulong addr) where T : new()
+        public T MapVATR<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields)] T>(ulong addr) where T : new()
         {
             return ReadClass<T>(MapVATR(addr));
         }
 
-        public T[] MapVATR<T>(ulong addr, ulong count) where T : new()
+        public T[] MapVATR<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields)] T>(ulong addr, ulong count) where T : new()
         {
             return ReadClassArray<T>(MapVATR(addr), count);
         }
 
-        public T[] MapVATR<T>(ulong addr, long count) where T : new()
+        public T[] MapVATR<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields)] T>(ulong addr, long count) where T : new()
         {
             return ReadClassArray<T>(MapVATR(addr), count);
         }
